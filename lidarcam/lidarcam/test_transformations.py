@@ -56,7 +56,7 @@ def get_sample_data(bag_path):
     cursor.execute("SELECT id, name, type FROM topics")
     topics = {name: (id, msg_type) for id, name, msg_type in cursor.fetchall()}
     
-    camera_topic = '/camera/image_raw'
+    camera_topic = '/camera/left/image_raw'
     lidar_topic = '/lidar/points2'
     
     # Get one camera message
@@ -148,16 +148,16 @@ def test_transformation(img, points, K, R, t, name, width, height):
 def main():
     print_section("COORDINATE TRANSFORMATION TESTER")
     
-    bag_path = '/home/pinaka/dataset/AVMI/run1_lidar_camera/run1_lidar_camera_0.db3'
+    bag_path = '/home/pinaka/dataset/AVMI/mrzr_run_02_0-001.db3'
     
     if not os.path.exists(bag_path):
-        print(f"❌ Bag file not found: {bag_path}")
+        print(f"Bag file not found: {bag_path}")
         return
     
     print("Loading sample data...")
     img, points = get_sample_data(bag_path)
-    print(f"✅ Loaded image: {img.shape}")
-    print(f"✅ Loaded {len(points)} LiDAR points")
+    print(f"Loaded image: {img.shape}")
+    print(f"Loaded {len(points)} LiDAR points")
     
     # Setup camera
     K, width, height = setup_camera_intrinsics()
@@ -290,7 +290,7 @@ def main():
         
     else:
         print_section("NO SOLUTION FOUND")
-        print("❌ None of the coordinate transformations produced points in the image.")
+        print("None of the coordinate transformations produced points in the image.")
         print("\nPossible issues:")
         print("1. LiDAR and camera FOV don't overlap")
         print("2. Sensor positions in Unreal are incorrect")

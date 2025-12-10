@@ -57,7 +57,7 @@ class ColoredPointCloudGenerator:
         # Camera intrinsics
         image_width = 640
         image_height = 480
-        fov_degrees = 100.0
+        fov_degrees = 90.0
         
         # Calculate camera matrix
         fov_rad = math.radians(fov_degrees)
@@ -73,15 +73,15 @@ class ColoredPointCloudGenerator:
         ], dtype=np.float32)
         
         # Distortion coefficients
-        self.dist_coeffs = np.array([0.000, 0.100, 0.0, 0.0, 0.0], dtype=np.float32)
+        self.dist_coeffs = np.array([0.0, 0.150, 0.0, 0.0, 0.0], dtype=np.float32)
         
         # Extrinsics: LiDAR to Camera transformation
-        self.t_l2c = np.array([-0.922000, -0.750000, -1.864000], dtype=np.float32)
+        self.t_l2c = np.array([1.478000, 0.000000, -1.064000], dtype=np.float32)
         
         # Rotation matrix (pitch=-90°, yaw=0°, roll=90°)
-        pitch_deg = -90.0
-        yaw_deg = 0.0
-        roll_deg = 90.0
+        pitch_deg = -74.0
+        yaw_deg = -6.0
+        roll_deg = 96.0
         
         pitch_rad = math.radians(pitch_deg)
         yaw_rad = math.radians(yaw_deg)
@@ -145,7 +145,7 @@ class ColoredPointCloudGenerator:
         cursor.execute("SELECT id, name FROM topics")
         topics = {name: id for id, name in cursor.fetchall()}
         
-        camera_id = topics['/camera/image_raw']
+        camera_id = topics['/camera/left/image_raw']
         lidar_id = topics['/lidar/points2']
         
         # Load camera frame
@@ -181,7 +181,7 @@ class ColoredPointCloudGenerator:
         
         points = np.array(points_list, dtype=np.float32)
         
-        print(f"✅ Loaded frame {frame_number}:")
+        print(f"Loaded frame {frame_number}:")
         print(f"   - Image: {img.shape[1]}x{img.shape[0]} pixels")
         print(f"   - LiDAR: {len(points)} points")
         
@@ -266,7 +266,7 @@ class ColoredPointCloudGenerator:
         front = Z > 0.1
         
         if front.sum() == 0:
-            print("   ⚠️ WARNING: No points in front of camera!")
+            print("WARNING: No points in front of camera!")
             return None, img_bgr
         
         Pc_front = Pc[front]
@@ -287,7 +287,7 @@ class ColoredPointCloudGenerator:
         inside = (u >= 0) & (u < w) & (v >= 0) & (v < h)
         
         if inside.sum() == 0:
-            print("   ⚠️ WARNING: No points project inside image!")
+            print("WARNING: No points project inside image!")
             return None, img_bgr
         
         u_valid = u[inside].astype(np.int32)
@@ -309,7 +309,7 @@ class ColoredPointCloudGenerator:
             colors_rgb.astype(np.float32)   # (N, 3) - R, G, B
         ))  # Result: (N, 6)
         
-        print(f"✅ Created colored point cloud with {len(colored_points)} points")
+        print(f"Created colored point cloud with {len(colored_points)} points")
         print("="*70)
         
         # Create visualization image showing projected points
@@ -385,7 +385,7 @@ end_header
             for p, c in zip(xyz, rgb):
                 f.write(f"{p[0]:.6f} {p[1]:.6f} {p[2]:.6f} {c[0]} {c[1]} {c[2]}\n")
         
-        print(f"✅ Saved {len(colored_points)} points to {output_path}")
+        print(f"Saved {len(colored_points)} points to {output_path}")
     
     def visualize_ply(self, ply_path):
         """
@@ -406,7 +406,7 @@ end_header
             ply_path: Path to .ply file
         """
         if not HAS_OPEN3D:
-            print("⚠️ Open3D not available. Cannot visualize.")
+            print("Open3D not available. Cannot visualize.")
             return
         
         print(f"\nLoading PLY file for visualization: {ply_path}")
@@ -440,8 +440,8 @@ def main():
     print("="*70)
     
     # Configuration
-    bag_path = '/home/pinaka/dataset/AVMI/run1_lidar_camera/run1_lidar_camera_0.db3'
-    frame_number = 261  # Frame that was used for calibration
+    bag_path = '/home/pinaka/dataset/AVMI/data/rosbag1210.db3'
+    frame_number = 10  # Frame that was used for calibration
     output_dir = Path("colored_pointclouds")
     output_dir.mkdir(exist_ok=True)
     
@@ -464,32 +464,32 @@ def main():
     colored_pc, vis_img = generator.create_colored_pointcloud(img, points)
     
     if colored_pc is None:
-        print("\n❌ Failed to create colored point cloud!")
-        print("   Check calibration parameters and try different frame.")
+        print("\nFailed to create colored point cloud!")
+        print("Check calibration parameters and try different frame.")
         return
     
     # Save PLY file
-    generator.save_ply(colored_pc, str(output_ply))
+    #generator.save_ply(colored_pc, str(output_ply))
     
     # Save visualization image
     cv2.imwrite(str(output_vis), vis_img)
-    print(f"✅ Saved projection visualization to {output_vis}")
+    print(f"Saved projection visualization to {output_vis}")
     
-    # Visualize in 3D
-    print("\n" + "="*70)
-    print("Opening 3D visualization...")
-    print("="*70)
-    generator.visualize_ply(str(output_ply))
+    # # Visualize in 3D
+    # print("\n" + "="*70)
+    # print("Opening 3D visualization...")
+    # print("="*70)
+    # generator.visualize_ply(str(output_ply))
     
-    print("\n" + "="*70)
-    print("✅ DONE!")
-    print("="*70)
-    print(f"Your colored point cloud is saved at: {output_ply}")
-    print("You can open it with:")
-    print(f"  - Open3D: python -c 'import open3d as o3d; o3d.visualization.draw_geometries([o3d.io.read_point_cloud(\"{output_ply}\")])'")
-    print(f"  - CloudCompare: cloudcompare {output_ply}")
-    print(f"  - MeshLab: meshlab {output_ply}")
-    print("="*70)
+    # print("\n" + "="*70)
+    # print("DONE!")
+    # print("="*70)
+    # print(f"Your colored point cloud is saved at: {output_ply}")
+    # print("You can open it with:")
+    # print(f"  - Open3D: python -c 'import open3d as o3d; o3d.visualization.draw_geometries([o3d.io.read_point_cloud(\"{output_ply}\")])'")
+    # print(f"  - CloudCompare: cloudcompare {output_ply}")
+    # print(f"  - MeshLab: meshlab {output_ply}")
+    # print("="*70)
 
 
 if __name__ == '__main__':

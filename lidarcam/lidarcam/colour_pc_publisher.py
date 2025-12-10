@@ -74,7 +74,7 @@ class ColoredPointCloudPublisher(Node):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('bag_file', '/home/pinaka/dataset/AVMI/run1_lidar_camera/run1_lidar_camera_0.db3'),
+                ('bag_file', '/home/pinaka/dataset/AVMI/data/rosbag1210.db3'),
                 ('fps', 10.0),
             ]
         )
@@ -87,7 +87,7 @@ class ColoredPointCloudPublisher(Node):
         
         # Publishers
         self.colored_pc_pub = self.create_publisher(PointCloud2, '/colored_pointcloud', 10)
-        self.raw_image_pub = self.create_publisher(Image, '/camera/image_raw', 10)
+        self.raw_image_pub = self.create_publisher(Image, '/camera/left', 10)
         
         # Load bag data
         self._load_bag_data()
@@ -102,7 +102,7 @@ class ColoredPointCloudPublisher(Node):
     def _setup_calibration(self):
         """Load calibrated parameters"""
         # Camera intrinsics
-        fov_degrees = 100.0
+        fov_degrees = 90.0
         fov_rad = math.radians(fov_degrees)
         focal_length = (640 / 2.0) / math.tan(fov_rad / 2.0)
         
@@ -111,15 +111,18 @@ class ColoredPointCloudPublisher(Node):
             [0, focal_length, 240.0],
             [0, 0, 1]
         ], dtype=np.float32)
-        
-        self.dist_coeffs = np.array([0.000, 0.100, 0.0, 0.0, 0.0], dtype=np.float32)
+    
+        pitch_deg = -74.0
+        yaw_deg = -6.0
+        roll_deg = 96.0
+        self.dist_coeffs = np.array([0.000, 0.150, 0.0, 0.0, 0.0], dtype=np.float32)
         
         # Extrinsics
-        self.t_l2c = np.array([-0.922000, -0.750000, -1.864000], dtype=np.float32)
+        self.t_l2c = np.array([1.478000, 0.000000, -1.064000], dtype=np.float32)
         
-        pitch_rad = math.radians(-90.0)
-        yaw_rad = math.radians(0.0)
-        roll_rad = math.radians(90.0)
+        pitch_rad = math.radians(-74.0)
+        yaw_rad = math.radians(-6.0)
+        roll_rad = math.radians(96.0)
         
         R_pitch = np.array([
             [math.cos(pitch_rad),  0, math.sin(pitch_rad)],
@@ -149,7 +152,7 @@ class ColoredPointCloudPublisher(Node):
         cursor.execute("SELECT id, name FROM topics")
         topics = {name: id for id, name in cursor.fetchall()}
         
-        camera_id = topics['/camera/image_raw']
+        camera_id = topics['/camera/left/image_raw']
         lidar_id = topics['/lidar/points2']
         
         # Load all messages

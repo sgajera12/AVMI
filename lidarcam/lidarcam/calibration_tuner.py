@@ -75,7 +75,7 @@ class CalibrationTuner:
         cursor.execute("SELECT id, name FROM topics")
         topics = {name: id for id, name in cursor.fetchall()}
         
-        camera_id = topics['/camera/image_raw']
+        camera_id = topics['/camera/left/image_raw']
         lidar_id = topics['/lidar/points2']
         
         # Load specific frame by offset
@@ -338,7 +338,7 @@ class CalibrationTuner:
 if __name__ == '__main__':
     import sys
     
-    bag_path = '/home/pinaka/dataset/AVMI/run1_lidar_camera/run1_lidar_camera_0.db3'
+    bag_path = '/home/pinaka/dataset/AVMI/data/rosbag1210.db3'
     
     # Get frame number from command line argument
     frame_number = 0
