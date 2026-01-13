@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """
-Interactive Calibration Tuner
+Interactive Calibration Tuner - SEMANTIC COLORS VERSION
 
-This script helps you find the RIGHT camera position and orientation
-to get natural-looking projections like in Rellis3D.
+Shows colored LiDAR semantic segmentation points projected onto camera!
+- Brown = Ground
+- Green = Trees/Grass  
+- Red = Rocks
+- Orange/Yellow = Tree trunks
 
-Press keys to adjust parameters in real-time!
+Adjust calibration until colored points align with image features!
 """
 
 import os
 import numpy as np
 import cv2
 import sqlite3
+import struct
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import Image, PointCloud2
 import sensor_msgs_py.point_cloud2 as pc2
@@ -29,27 +33,35 @@ class CalibrationTuner:
         print(f"\nLoading frame {frame_number}...")
         self.img, self.points = self.load_sample(frame_number)
         
-        # Starting parameters (from Unreal)
-        self.tx = 1.878  # Forward
-        self.ty = 0.0    # Sideways
-        self.tz = -0.764 # Vertical (camera below LiDAR)
+        # Starting parameters (from UE - your screenshot!)
+        # Location: X=-31.08, Y=-0.00, Z=202.0 (in cm, convert to meters)
+        self.tx = -31.08 / 100.0  # -0.3108 m (backward)
+        self.ty = -0.00 / 100.0   # 0.0 m
+        self.tz = 202.0 / 100.0   # 2.02 m (up!)
         
-        # Camera orientation (might need adjustment!)
-        self.pitch = 0.0  # Tilt up/down
-        self.yaw = 0.0    # Pan left/right
-        self.roll = 0.0   # Roll
+        # Rotation from UE: all 0.0°
+        self.pitch = 0.0  # No tilt
+        self.yaw = 0.0    # No pan
+        self.roll = 0.0   # No roll
         
         # Camera intrinsics
-        self.fov = 170.0
+        self.fov = 90.0  # Field of view is 90 degrees
         self.update_intrinsics()
         
         # Distortion
-        self.k1 = -0.3
-        self.k2 = 0.1
+        self.k1 = 0.0
+        self.k2 = 0.0
         
         print("\n" + "="*70)
-        print("  INTERACTIVE CALIBRATION TUNER")
+        print("  INTERACTIVE CALIBRATION TUNER - SEMANTIC COLORS")
         print("="*70)
+        print("\nStarting with UE values from your screenshot:")
+        print(f"  Location (UE): X=-31.08cm, Y=-0.00cm, Z=202.0cm")
+        print(f"  Translation: ({self.tx:.3f}, {self.ty:.3f}, {self.tz:.3f}) meters")
+        print(f"  Rotation (UE): all 0.0°")
+        print(f"  Rotation: pitch={self.pitch:.1f}°, yaw={self.yaw:.1f}°, roll={self.roll:.1f}°")
+        print(f"  FOV: {self.fov:.1f}° (left camera, 640x480)")
+        print("\nNote: Camera is 2.02m ABOVE LiDAR (Z=202cm)")
         print("\nControls:")
         print("  LEFT/RIGHT Arrow: Previous/Next frame")
         print("  Q/A: Adjust translation X (forward/back)")
@@ -111,8 +123,98 @@ class CalibrationTuner:
         img = self.bridge.imgmsg_to_cv2(camera_msg, desired_encoding='bgr8')
         
         points_list = []
+        # Try to read RGB from point cloud - multiple methods
+        
+        # Method 1: Try reading 'rgb' field
+        try:
+            for point in pc2.read_points(lidar_msg, field_names=('x', 'y', 'z', 'rgb'), skip_nans=True):
+                x, y, z, rgb = point
+                
+                # Decode RGB from packed float
+                # RGB might be packed as uint32 in a float
+                rgb_packed = struct.unpack('I', struct.pack('f', rgb))[0]
+                r = (rgb_packed >> 16) & 0xFF
+                g = (rgb_packed >> 8) & 0xFF
+                b = rgb_packed & 0xFF
+                
+                points_list.append([x, y, z, r, g, b])
+            
+            if len(points_list) > 0:
+                print(f"✅ Method 1 worked: Extracted RGB from 'rgb' field")
+                # Check if we have actual colors (not all same)
+                points_array = np.array(points_list, dtype=np.float32)
+                unique_colors = len(np.unique(points_array[:, 3:6], axis=0))
+                print(f"   Found {unique_colors} unique colors")
+                if unique_colors > 1:
+                    points = points_array
+                    return img, points
+        except Exception as e:
+            print(f"Method 1 failed: {e}")
+            points_list = []
+        
+        # Method 2: Try reading r, g, b fields separately
+        try:
+            for point in pc2.read_points(lidar_msg, field_names=('x', 'y', 'z', 'r', 'g', 'b'), skip_nans=True):
+                x, y, z, r, g, b = point
+                points_list.append([x, y, z, int(r), int(g), int(b)])
+            
+            if len(points_list) > 0:
+                print(f"✅ Method 2 worked: Extracted from separate r,g,b fields")
+                points_array = np.array(points_list, dtype=np.float32)
+                unique_colors = len(np.unique(points_array[:, 3:6], axis=0))
+                print(f"   Found {unique_colors} unique colors")
+                if unique_colors > 1:
+                    points = points_array
+                    return img, points
+        except Exception as e:
+            print(f"Method 2 failed: {e}")
+            points_list = []
+        
+        # Method 3: Manual parsing from raw data
+        print("Trying Method 3: Manual parsing...")
+        import struct as st
+        
+        # Get point step and data
+        point_step = lidar_msg.point_step
+        data = lidar_msg.data
+        
+        for i in range(0, len(data) - point_step, point_step):
+            try:
+                # Assuming: x,y,z (float32, 12 bytes) + rgb (uint32, 4 bytes) = 16 bytes
+                x = st.unpack_from('f', data, i)[0]
+                y = st.unpack_from('f', data, i + 4)[0]
+                z = st.unpack_from('f', data, i + 8)[0]
+                rgb_int = st.unpack_from('I', data, i + 12)[0]
+                
+                r = (rgb_int >> 16) & 0xFF
+                g = (rgb_int >> 8) & 0xFF
+                b = rgb_int & 0xFF
+                
+                if not (np.isnan(x) or np.isnan(y) or np.isnan(z)):
+                    points_list.append([x, y, z, r, g, b])
+            except:
+                continue
+        
+        if len(points_list) > 0:
+            print(f"✅ Method 3 worked: Manual parsing")
+            points_array = np.array(points_list, dtype=np.float32)
+            unique_colors = len(np.unique(points_array[:, 3:6], axis=0))
+            print(f"   Found {unique_colors} unique colors")
+            
+            # Show sample colors
+            print("\n   Sample RGB values:")
+            for i in range(min(10, len(points_array))):
+                r, g, b = points_array[i, 3:6].astype(int)
+                print(f"     Point {i}: RGB({r}, {g}, {b})")
+            
+            points = points_array
+            return img, points
+        
+        print("❌ All methods failed - no RGB data found!")
+        # Fallback: just XYZ
+        points_list = []
         for point in pc2.read_points(lidar_msg, field_names=('x', 'y', 'z'), skip_nans=True):
-            points_list.append([point[0], point[1], point[2]])
+            points_list.append([point[0], point[1], point[2], 128, 128, 128])  # Gray
         
         points = np.array(points_list, dtype=np.float32)
         
@@ -166,15 +268,19 @@ class CalibrationTuner:
         return R.astype(np.float32)
     
     def project_points(self):
-        """Project points with current parameters."""
+        """Project points with current parameters and show semantic colors."""
         h, w = self.img.shape[:2]
         
         # Get transformation
         R = self.get_rotation_matrix()
         t = np.array([self.tx, self.ty, self.tz], dtype=np.float32)
         
+        # Extract XYZ and RGB
+        xyz = self.points[:, :3]
+        rgb = self.points[:, 3:6].astype(np.uint8)
+        
         # Transform to camera frame
-        Pc = (R @ self.points.T + t.reshape(3, 1)).T
+        Pc = (R @ xyz.T + t.reshape(3, 1)).T
         Z = Pc[:, 2]
         front = Z > 0.1
         
@@ -183,6 +289,7 @@ class CalibrationTuner:
         
         Pc = Pc[front]
         Z = Z[front]
+        rgb = rgb[front]
         
         # Project with distortion
         dist_coeffs = np.array([self.k1, self.k2, 0.0, 0.0, 0.0], dtype=np.float32)
@@ -201,18 +308,15 @@ class CalibrationTuner:
         
         u = u[keep].astype(np.int32)
         v = v[keep].astype(np.int32)
-        Z_vis = Z[keep]
+        rgb = rgb[keep]
         
         # Create visualization
         output = self.img.copy()
         
-        # Color by depth
-        Zn = (Z_vis - Z_vis.min()) / (Z_vis.max() - Z_vis.min() + 1e-6)
-        Zc = (Zn * 255).astype(np.uint8)
-        colors = cv2.applyColorMap(Zc, cv2.COLORMAP_JET)
-        
-        for (x, y, c) in zip(u, v, colors):
-            cv2.circle(output, (x, y), 2, tuple(int(a) for a in c[0]), -1)
+        # Draw points with their semantic colors (BGR for OpenCV)
+        for (x, y, color) in zip(u, v, rgb):
+            r, g, b = color
+            cv2.circle(output, (x, y), 3, (int(b), int(g), int(r)), -1)
         
         return output, keep.sum()
     
@@ -350,12 +454,16 @@ if __name__ == '__main__':
             print(f"Invalid frame number: {sys.argv[1]}, using frame 0")
     
     print(f"\n{'='*70}")
-    print(f"  CALIBRATION TUNER - Frame {frame_number}")
+    print(f"  CALIBRATION TUNER - SEMANTIC COLORS - Frame {frame_number}")
     print(f"{'='*70}")
     print(f"Bag file: {bag_path}")
     print(f"Frame: {frame_number}")
-    print(f"\nUsage: python3 calibration_tuner.py [frame_number]")
-    print(f"Example: python3 calibration_tuner.py 261")
+    print(f"Camera: Left (640x480, FOV=90°)")
+    print(f"\nStarting with UE values from screenshot:")
+    print(f"  Location: X=-31.08cm, Y=0.0cm, Z=202cm")
+    print(f"  Rotation: 0°, 0°, 0°")
+    print(f"\nUsage: python3 calibration_tuner_semantic.py [frame_number]")
+    print(f"Example: python3 calibration_tuner_semantic.py 50")
     print(f"{'='*70}\n")
     
     tuner = CalibrationTuner(bag_path, frame_number)

@@ -1,0 +1,105 @@
+======================================================================
+LIDAR-CAMERA DIAGNOSTIC TOOL
+======================================================================
+
+Bag: /home/pinaka/dataset/AVMI/data/rosbag1210.db3
+
+This will:
+1. Analyze LiDAR point distribution
+2. Try different coordinate transformations
+3. Find which one actually projects points into camera
+======================================================================
+Loaded: (480, 640, 3) image, 3125 points
+
+======================================================================
+LIDAR POINT CLOUD ANALYSIS
+======================================================================
+
+Total points: 3125
+
+X-axis (typically forward/backward):
+  Min: -97.77 m
+  Max: 93.87 m
+  Mean: 6.50 m
+
+Y-axis (typically left/right):
+  Min: -80.68 m
+  Max: 98.91 m
+  Mean: 10.77 m
+
+Z-axis (typically up/down):
+  Min: -8.71 m
+  Max: 23.78 m
+  Mean: 1.46 m
+
+Colors found: 4
+
+Top 5 colors:
+  RGB(  0, 255,   0):  1388 points (44.4%)
+  RGB(139,  69,  19):  1505 points (48.2%)
+  RGB(243, 156,  18):    16 points (0.5%)
+  RGB(255,   0,   0):   216 points (6.9%)
+
+======================================================================
+TESTING DIFFERENT TRANSFORMATIONS
+======================================================================
+
+No transform (identity):
+  Points in front: 1257
+  Points in image: 0
+
+UE values (X=-0.31, Y=0, Z=2.02):
+  Points in front: 1962
+  Points in image: 0
+
+Pitch -45° (tilt down):
+  Points in front: 2103
+  Points in image: 198
+
+Pitch -60° (tilt down more):
+  Points in front: 2091
+  Points in image: 730
+
+Pitch -90° (look straight down):
+  Points in front: 2081
+  Points in image: 853
+
+Swap axes: X→Z, Z→-X:
+  Points in front: 1975
+  Points in image: 744
+
+Swap axes: X→-Z, Z→X:
+  Points in front: 1135
+  Points in image: 497
+
+======================================================================
+BEST TRANSFORMATIONS:
+======================================================================
+
+1. Pitch -90° (look straight down)
+   Points visible: 853
+   Rotation matrix:
+     [ 0.000,  0.000, -1.000]
+     [ 0.000,  1.000,  0.000]
+     [ 1.000,  0.000,  0.000]
+   Translation: [-0.311, 0.000, 2.020]
+
+2. Swap axes: X→Z, Z→-X
+   Points visible: 744
+   Rotation matrix:
+     [ 0.000,  0.000, -1.000]
+     [ 0.000,  1.000,  0.000]
+     [ 1.000,  0.000,  0.000]
+   Translation: [0.000, 0.000, 0.000]
+
+3. Pitch -60° (tilt down more)
+   Points visible: 730
+   Rotation matrix:
+     [ 0.500,  0.000, -0.866]
+     [ 0.000,  1.000,  0.000]
+     [ 0.866,  0.000,  0.500]
+   Translation: [-0.311, 0.000, 2.020]
+
+======================================================================
+✓ DIAGNOSTIC COMPLETE
+======================================================================
